@@ -53,6 +53,8 @@ class ActiveChannel: public PassiveChannel {
 
 class Channels {
     public:
+        Channels();
+        ~Channels();
         TemperatureChannel* TemperatureChannels[16];
         PassiveChannel* PassiveChannels[8];
         ActiveChannel* ActiveChannels[8];

@@ -19,18 +19,18 @@ int pinCS13 = 33;
 int voltagePassif1 = 54;
 int voltage = 0;
 
-Channels channels;
+//Channels channels;
 
 void setup()
 {
-    channels.PassiveChannels[0] = new PassiveChannel(22, 54, 46);
     Serial.begin(9600);
+    Channels channelsssss;
 }
 
 void loop()
 {
-    channels.PassiveChannels[0]->update();
-    voltage = channels.PassiveChannels[0]->getVoltage();
-    Serial.println(voltage);
+    //channels.PassiveChannels[0]->update();
+    //voltage = channels.PassiveChannels[0]->getVoltage();
+    //Serial.println(voltage);
     delay(1000);
 }
