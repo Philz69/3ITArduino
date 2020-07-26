@@ -8,9 +8,8 @@ class Master {
     public:
         Master();
         String getCommand();
-        void sendData(Channels channels);
-    private:
-        long baudRate = 115200;
+        void sendUpdate(Channels &channels);
+        void sendPartialSweepData(sweepResult sweepResult[32]);
 };
 
 #endif

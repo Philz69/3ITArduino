@@ -1,5 +1,6 @@
 #include <arduino.h>
 #include "channels.h"
+#include "master.h"
 #include <ArduinoJson.h>
 #include <SPI.h>
 int ledPin = 13;
@@ -21,11 +22,12 @@ int pinCS13 = 33;
 int voltagePassif1 = 54;
 int voltage = 0;
 
-
+int lastUpdate = millis();
 //Channels channels;
+Channels channels;
+Master raspberrypi;
 
 bool sweetOnce = true;
-char serialInChars[255];
 
 void setup()
 {
@@ -34,45 +36,46 @@ void setup()
     Serial.println("test1");
     SPI.begin();
 
-    Channels channels;
     Serial.println("test2");
     for(int i = 0; i < 8; i++)
     {
-        ////channels.TemperatureChannels[i]->init();
+        channels.TemperatureChannels[i]->init();
+        channels.ActiveChannels[i]->startMPPT();
     }
     setPWMScaler(1);
     pinMode(ledPin, OUTPUT);
-    //channels.ActiveChannels[0]->startMPPT();
 }
 
 void loop() { 
-    /*for(int i=0; i < 8; i++)
-    {
-        channels.TemperatureChannels[i]->update();
+    if((millis() - lastUpdate) > 1000) {
+        updateAllChannels();
+        lastUpdate = millis();
     }
-    for(int i=0; i < 16; i++)
-    {
-        channels.PassiveChannels[i]->update();
-        channels.ActiveChannels[i]->update();
-    }*/
-    //channels.ActiveChannels[0]->updateMPPT();
 
-    //sweepActiveChannels();
-    /*for(int i = 0; i < 8; i++)
+    for(int i = 0; i < 8; i++)
     {
-        sweepResult sweepData[255] = channels.ActiveChannels[i].getSweepResult();
-        for(int j = 0; j < 255; j++)
+        int mode = channels.ActiveChannels[i]->getMode();
+        if(mode == MPPT_MODE)
         {
-            Serial.print(sweepData[j].voltage
+            channels.ActiveChannels[i]->updateMPPT();
         }
-    }*/
-    digitalWrite(LED_BUILTIN,HIGH);
-    Serial.println("looopin");
-    delay(1000);
-    digitalWrite(LED_BUILTIN,LOW);
-    delay(1000);
-}
+        else if(mode == SWEEP_MODE)
+        {
+            channels.ActiveChannels[i]->sweepIVasync();
+        }
+    }
 
+    String command = raspberrypi.getCommand();
+    if(command.startsWith("SweepActiveChannel_"))
+    {
+        channels.ActiveChannels[(int)command.charAt(18)]->startSweepIV();
+    }
+    if(command.startsWith("StartMPPTActiveChannel_"))
+    {
+        channels.ActiveChannels[(int)command.charAt(23)]->startMPPT();
+    }
+    
+}
 void setPWMScaler(int value) {
     if(value < 1 || value > 6)
     {
@@ -89,16 +92,19 @@ void setPWMScaler(int value) {
     TCCR4B |= value;
 }
 
-void sweepActiveChannels() {
-    bool sweepStatus[8] = {false};
-    while(sweepStatus[8])
-    {
-        for(int i = 0; i < 8; i++)
+void updateAllChannels() {
+        for(int i = 0 ; i < 8; i++)
         {
-            if(!sweepStatus[i])
-            {
-                //sweepStatus[i] = channels.ActiveChannels[i]->sweepIVasync();
-            }
+            channels.ActiveChannels[i]->updateMPPT();
         }
-    }   
+        for(int i=0; i < 8; i++)
+        {
+            channels.TemperatureChannels[i]->update();
+        }
+        for(int i=0; i <8; i++)
+        {
+            channels.PassiveChannels[i]->update();
+            channels.ActiveChannels[i]->update();
+        }
+        raspberrypi.sendUpdate(channels);
 }

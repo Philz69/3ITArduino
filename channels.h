@@ -10,6 +10,10 @@ const int SwitchPins[8] = {42,43,44,45,46,47,48,49};
 const int CSPins[13] = {22,23,24,25,26,27,28,29,30,31,32,33,34};
 const int PWMPins[9] = {2,3,5,6,7,8,9,10,11};
 
+const int STATIC_MODE = 0;
+const int MPPT_MODE = 1;
+const int SWEEP_MODE = 2;
+
 struct sweepResult {
     int voltage = 0;
     int current = 0;
@@ -62,14 +66,16 @@ class ActiveChannel: public PassiveChannel {
         ~ActiveChannel();
         void update();
         int sweepIV();
-        int sweepIVasync();
+        void startSweepIV();
+        void sweepIVasync();
         int startMPPT();
         int updateMPPT();
         int stopMPPT();
         int setPWM(int value);
+        int getMode();
         sweepResult getSweepResult(int i);
     protected:
-        sweepResult sweepData[255];
+        sweepResult sweepData[32];
         int PWM = 0;
         int sweepState = 0;
         int lastPWM = 0;

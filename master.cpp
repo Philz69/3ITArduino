@@ -1,7 +1,6 @@
 #include "master.h"
 
 Master::Master() {
-    Serial.begin(baudRate);
 }
 
 String Master::getCommand() {
@@ -10,8 +9,9 @@ String Master::getCommand() {
     return serialIn;
 }
 
-void Master::sendData(Channels channels) {
+void Master::sendUpdate(Channels &channels) {
     DynamicJsonDocument doc(2048);
+    doc["time"] = millis();
     JsonObject JSONchannels = doc.createNestedObject("channels");
     JsonArray JSONtemperatureChannels = JSONchannels.createNestedArray("TemperatureChannels");
     JsonArray JSONpassiveChannels = JSONchannels.createNestedArray("passiveChannels");
@@ -30,17 +30,13 @@ void Master::sendData(Channels channels) {
     }
     for(int i = 0; i < 8; i++)
     {
-        for(int j = 0; j < 255; j++)
-        {
-            JsonObject data = JSONsweepResults.createNestedObject();
-            data["voltage"] = channels.ActiveChannels[i]->getSweepResult(j).voltage;
-            data["current"] = channels.ActiveChannels[i]->getSweepResult(j).current;
-        }
+        JsonObject data = JSONactiveChannels.createNestedObject();
+        data["voltage"] = channels.ActiveChannels[i]->getVoltage();
+        data["current"] = channels.ActiveChannels[i]->getCurrent(); 
     }
-    unsigned long initTime = millis();
     serializeJson(doc, Serial);
-    unsigned long printTime = millis();
     Serial.println();
-    unsigned long ignoreTime = millis();
+}
 
+void Master::sendPartialSweepData(sweepResult sweepResult[32]) {
 }

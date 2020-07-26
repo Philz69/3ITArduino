@@ -1,7 +1,6 @@
 #include "channels.h"
 
 Channel::Channel(int CSPin) {
-    Serial.println("Constructor for channel called");
     this->CSPin = CSPin;
     pinMode(CSPin, OUTPUT);
     digitalWrite(CSPin, HIGH);
@@ -68,12 +67,15 @@ PassiveChannel::~PassiveChannel() {
 }
 
 void PassiveChannel::update() {
+    digitalWrite(switchPin, LOW);
     voltage = analogRead(voltagePin) * 4.9;
+    digitalWrite(switchPin, HIGH);
     SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
     current = SPI.transfer(controlRegister) * 2000;
     digitalWrite(CSPin, HIGH);
     SPI.endTransaction();
+    digitalWrite(switchPin, LOW);
 }
 
 int PassiveChannel::getVoltage() {
@@ -99,7 +101,6 @@ int PassiveChannel::setState(int state) {
 }
 
 ActiveChannel::ActiveChannel(int CSPin, int voltagePin, int switchPin, int controlRegister):PassiveChannel(CSPin, voltagePin, switchPin, controlRegister) {
-    Serial.println("Constructor for active channel called");
 }
 
 ActiveChannel::~ActiveChannel() {    
@@ -139,27 +140,30 @@ int ActiveChannel::sweepIV() {
     {
         setPWM(i);
         update();
-        sweepData[i].voltage = voltage;
-        sweepData[i].current = current;
+        sweepData[i % 32].voltage = voltage;
+        sweepData[i % 32].current = current;
     }
     return 1;
 }
 
-int ActiveChannel::sweepIVasync() {
+void ActiveChannel::startSweepIV() {
+    mode = SWEEP_MODE;
+}  
+
+void ActiveChannel::sweepIVasync() {
     if(sweepState < 255)
     {
         setPWM(sweepState);
         sweepState += 1;
         update();
-        sweepData[sweepState].voltage = voltage;
-        sweepData[sweepState].current = current;
+        sweepData[sweepState % 32].voltage = voltage;
+        sweepData[sweepState % 32].current = current;
     }
     else
     {
         sweepState = 0;
-        return 1;
+        mode = STATIC_MODE;
     }
-    return 0;
 }
 
 sweepResult ActiveChannel::getSweepResult(int i) {
@@ -171,13 +175,14 @@ int ActiveChannel::startMPPT() {
     this->update();
     this->setPWM(PWM + 1);
     this->update();
+    mode = MPPT_MODE;
 }
 
 int ActiveChannel::updateMPPT() {
     if(simulate)
     {
-        Serial.print("Voltage: "); Serial.print(voltage); Serial.print("| Current: "); Serial.print(current); Serial.print("| Total: "); Serial.println(voltage*current);
-        Serial.print("PWM: "); Serial.println(PWM);
+        /*Serial.print("Voltage: "); Serial.print(voltage); Serial.print("| Current: "); Serial.print(current); Serial.print("| Total: "); Serial.println(voltage*current);
+        Serial.print("PWM: "); Serial.println(PWM);*/
     }
     if(lastVoltage*lastCurrent > voltage*current)
     {
@@ -192,7 +197,12 @@ int ActiveChannel::updateMPPT() {
 }
 
 int ActiveChannel::stopMPPT() {
+    mode = STATIC_MODE;
     return 1;
+}
+
+int ActiveChannel::getMode() {
+    return mode;
 }
 
 Channels::Channels() {
