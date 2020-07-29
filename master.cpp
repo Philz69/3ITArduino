@@ -5,7 +5,6 @@ Master::Master() {
 
 String Master::getCommand() {
     String serialIn = Serial.readStringUntil('\n');
-    Serial.println(serialIn);
     return serialIn;
 }
 
@@ -14,10 +13,8 @@ void Master::sendUpdate(Channels &channels) {
     doc["time"] = millis();
     JsonObject JSONchannels = doc.createNestedObject("channels");
     JsonArray JSONtemperatureChannels = JSONchannels.createNestedArray("TemperatureChannels");
-    JsonArray JSONpassiveChannels = JSONchannels.createNestedArray("passiveChannels");
+    JsonArray JSONpassiveChannels = JSONchannels.createNestedArray("PassiveChannels");
     JsonArray JSONactiveChannels = JSONchannels.createNestedArray("ActiveChannels");
-    JsonObject JSONsweepResult = JSONactiveChannels.createNestedObject();
-    JsonArray JSONsweepResults = JSONsweepResult.createNestedArray("sweepResult");
     for(int i = 0; i < 16; i++)
     {
         JsonObject data = JSONtemperatureChannels.createNestedObject();

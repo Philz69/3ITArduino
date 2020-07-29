@@ -23,7 +23,7 @@ int TemperatureChannel::getTemperature() {
 }
 
 void TemperatureChannel::init() {
-    // 0 000 111 0 100 0 1 01 0  | 0x0E 0x8A Input 1 FSR +-0.256V
+    // 0  000111 0 100 0 1 01 0  | 0x0E 0x8A Input 1 FSR +-0.256V
     // 0 011 111 0 100 0 1 01 0 | 0x3E 0x8A Input 2 FSR +-0.256V 
     // Sets FSR to +-0.256V
     SPI.beginTransaction(SPISetting);
@@ -125,7 +125,12 @@ void ActiveChannel::update() {
     }
     else
     {
-        PassiveChannel::update();
+        voltage = analogRead(voltagePin) * 4.9;
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        current = SPI.transfer(controlRegister) * 2000;
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
     }
 }
 int ActiveChannel::setPWM(int value) {

@@ -23,6 +23,7 @@ int voltagePassif1 = 54;
 int voltage = 0;
 
 int lastUpdate = millis();
+const int updateTime = 1000;
 //Channels channels;
 Channels channels;
 Master raspberrypi;
@@ -33,10 +34,7 @@ void setup()
 {
     digitalWrite(LED_BUILTIN,LOW);
     Serial.begin(115200);
-    Serial.println("test1");
     SPI.begin();
-
-    Serial.println("test2");
     for(int i = 0; i < 8; i++)
     {
         channels.TemperatureChannels[i]->init();
@@ -44,13 +42,14 @@ void setup()
     }
     setPWMScaler(1);
     pinMode(ledPin, OUTPUT);
+    Serial.println("Ready");
 }
 
 void loop() { 
-    if((millis() - lastUpdate) > 1000) {
+    /*if((millis() - lastUpdate) > updateTime) {
         updateAllChannels();
         lastUpdate = millis();
-    }
+    }*/
 
     for(int i = 0; i < 8; i++)
     {
@@ -65,16 +64,8 @@ void loop() {
         }
     }
 
-    String command = raspberrypi.getCommand();
-    if(command.startsWith("SweepActiveChannel_"))
-    {
-        channels.ActiveChannels[(int)command.charAt(18)]->startSweepIV();
-    }
-    if(command.startsWith("StartMPPTActiveChannel_"))
-    {
-        channels.ActiveChannels[(int)command.charAt(23)]->startMPPT();
-    }
-    
+    execCommand(raspberrypi.getCommand());
+
 }
 void setPWMScaler(int value) {
     if(value < 1 || value > 6)
@@ -107,4 +98,35 @@ void updateAllChannels() {
             channels.ActiveChannels[i]->update();
         }
         raspberrypi.sendUpdate(channels);
+}
+
+void execCommand(String command)  { 
+
+    if(command.startsWith("Update"))
+    {
+        updateAllChannels();
+    }
+    if(command.startsWith("SweepActiveChannel_"))
+    {
+        //channels.ActiveChannels[(int)command.charAt(18)]->startSweepIV();
+        Serial.print("channels.ActiveChannels["); 
+        Serial.print((int)command.charAt(18)); 
+        Serial.println("]->startSweepIV();");
+    }
+    if(command.startsWith("StartMPPTActiveChannel_"))
+    {
+        //channels.ActiveChannels[(int)command.charAt(23)]->startMPPT();
+        Serial.print("channels.ActiveChannels["); 
+        Serial.print((int)command.charAt(23)); 
+        Serial.println("]->startMPPT;");
+    }
+    if(command.startsWith("StopMPPTActiveChannel_"))
+    {
+        //channels.ActiveChannels[(int)command.charAt(22)]->stopMPPT();
+        Serial.print("channels.ActiveChannels["); 
+        Serial.print((int)command.charAt(22)); 
+        Serial.println("]->startMPPT;");
+    }
+    
+
 }
