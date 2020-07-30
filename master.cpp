@@ -35,5 +35,19 @@ void Master::sendUpdate(Channels &channels) {
     Serial.println();
 }
 
-void Master::sendPartialSweepData(sweepResult sweepResult[32]) {
+void Master::sendPartialSweepData(sweepResult* sweepResult, int channelNumber, int currentPWM) {
+    DynamicJsonDocument doc(2048);
+    doc["time"] = millis();
+    JsonObject JSONsweepResults = doc.createNestedObject("sweepResults");
+    JSONsweepResults["channel"] = channelNumber;
+    JSONsweepResults["progress"] = currentPWM / 255.0;
+    JsonArray JSONvoltage = JSONsweepResults.createNestedArray("voltage");
+    JsonArray JSONcurrent = JSONsweepResults.createNestedArray("current");
+    for(int i = 0; i < 32; i++)
+    {
+        JSONvoltage.add(sweepResult[i].voltage);
+        JSONcurrent.add(sweepResult[i].current);
+    }
+    serializeJson(doc, Serial);
+    Serial.println();
 }

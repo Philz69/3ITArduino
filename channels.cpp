@@ -117,9 +117,13 @@ void ActiveChannel::update() {
         {
             current = 0.55*voltageSimul;
         }
-        else
+        else if(PWM < 81)
         {
             current = -( ((voltageSimul-1315)*0.1)*((voltageSimul-1315)*0.1)) + 724;
+        }
+        else
+        {
+            current = 0;
         }
         
     }
@@ -132,6 +136,9 @@ void ActiveChannel::update() {
         digitalWrite(CSPin, HIGH);
         SPI.endTransaction();
     }
+}
+int ActiveChannel::getPWM() {
+    return PWM;
 }
 int ActiveChannel::setPWM(int value) {
     lastPWM = PWM;
@@ -153,10 +160,13 @@ int ActiveChannel::sweepIV() {
 
 void ActiveChannel::startSweepIV() {
     mode = SWEEP_MODE;
+    sweepState = 1;
+    setPWM(0);
+    update();
 }  
 
 void ActiveChannel::sweepIVasync() {
-    if(sweepState < 255)
+    if(sweepState <= 255)
     {
         setPWM(sweepState);
         sweepState += 1;
@@ -171,8 +181,8 @@ void ActiveChannel::sweepIVasync() {
     }
 }
 
-sweepResult ActiveChannel::getSweepResult(int i) {
-    return sweepData[i];
+sweepResult* ActiveChannel::getSweepResult() {
+    return sweepData;
 }
 
 int ActiveChannel::startMPPT() {

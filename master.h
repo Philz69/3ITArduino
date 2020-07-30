@@ -9,7 +9,7 @@ class Master {
         Master();
         String getCommand();
         void sendUpdate(Channels &channels);
-        void sendPartialSweepData(sweepResult sweepResult[32]);
+        void sendPartialSweepData(sweepResult* sweepResult, int channelNumber, int currentPWM);
 };
 
 #endif

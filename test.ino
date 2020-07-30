@@ -54,17 +54,32 @@ void loop() {
     for(int i = 0; i < 8; i++)
     {
         int mode = channels.ActiveChannels[i]->getMode();
+        /*Serial.print("Mode: ");
+        Serial.println(mode);*/
         if(mode == MPPT_MODE)
         {
             channels.ActiveChannels[i]->updateMPPT();
         }
         else if(mode == SWEEP_MODE)
         {
+            /*int pwm = channels.ActiveChannels[i]->getPWM();
+            Serial.print("PWM: ");
+            Serial.print(pwm);
+            Serial.print("PWM % 32:");
+            Serial.println(pwm % 32);*/
+            if(channels.ActiveChannels[i]->getPWM() % 32 >= 31)
+            {
+                raspberrypi.sendPartialSweepData(channels.ActiveChannels[i]->getSweepResult(), i, channels.ActiveChannels[i]->getPWM());
+            }
             channels.ActiveChannels[i]->sweepIVasync();
         }
     }
-
-    execCommand(raspberrypi.getCommand());
+    if(Serial.available() > 0)
+    {
+        //int before = millis();
+        execCommand(raspberrypi.getCommand());
+        //Serial.println(millis() - before);
+    }
 
 }
 void setPWMScaler(int value) {
@@ -108,24 +123,24 @@ void execCommand(String command)  {
     }
     if(command.startsWith("SweepActiveChannel_"))
     {
-        //channels.ActiveChannels[(int)command.charAt(18)]->startSweepIV();
-        Serial.print("channels.ActiveChannels["); 
-        Serial.print((int)command.charAt(18)); 
-        Serial.println("]->startSweepIV();");
+        channels.ActiveChannels[(int)command.charAt(19) - (int)'0']->startSweepIV();
+        /*Serial.print("channels.ActiveChannels["); 
+        Serial.print((int)command.charAt(19) - (int)'0'); 
+        Serial.println("]->startSweepIV();");*/
     }
     if(command.startsWith("StartMPPTActiveChannel_"))
     {
-        //channels.ActiveChannels[(int)command.charAt(23)]->startMPPT();
-        Serial.print("channels.ActiveChannels["); 
+        channels.ActiveChannels[(int)command.charAt(23) - (int)'0']->startMPPT();
+        /*Serial.print("channels.ActiveChannels["); 
         Serial.print((int)command.charAt(23)); 
-        Serial.println("]->startMPPT;");
+        Serial.println("]->startMPPT;");*/
     }
     if(command.startsWith("StopMPPTActiveChannel_"))
     {
-        //channels.ActiveChannels[(int)command.charAt(22)]->stopMPPT();
-        Serial.print("channels.ActiveChannels["); 
+        channels.ActiveChannels[(int)command.charAt(22) - (int)'0']->stopMPPT();
+        /*Serial.print("channels.ActiveChannels["); 
         Serial.print((int)command.charAt(22)); 
-        Serial.println("]->startMPPT;");
+        Serial.println("]->startMPPT;");*/
     }
     
 

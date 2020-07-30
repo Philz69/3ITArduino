@@ -72,8 +72,9 @@ class ActiveChannel: public PassiveChannel {
         int updateMPPT();
         int stopMPPT();
         int setPWM(int value);
+        int getPWM();
         int getMode();
-        sweepResult getSweepResult(int i);
+        sweepResult* getSweepResult();
     protected:
         sweepResult sweepData[32];
         int PWM = 0;
