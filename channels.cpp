@@ -12,47 +12,109 @@ Channel::~Channel() {
 
 TemperatureChannel::TemperatureChannel(int CSPin, int controlRegister):Channel(CSPin) {
     SPISetting = SPISettings(3000000, MSBFIRST, SPI_MODE1);
-
+    ads1118 = new ADS1118(CSPin);
+    this->controlRegister = controlRegister;
+    if(controlRegister == ADS1118_INPUTREGISTER[0]) {
+        delayMesurement = 100;
+        delayChannelChange = 0;
+    }
+    else
+    {
+        delayChannelChange = 200;
+        delayMesurement = 100;
+    }
+    
 }
 
 TemperatureChannel::~TemperatureChannel() {
 }
 
-int TemperatureChannel::getTemperature() {
+double TemperatureChannel::getTemperature() {
     return temperature;
 }
 
 void TemperatureChannel::init() {
-    // 0  000111 0 100 0 1 01 0  | 0x0E 0x8A Input 1 FSR +-0.256V
-    // 0 011 111 0 100 0 1 01 0 | 0x3E 0x8A Input 2 FSR +-0.256V 
+    // 0  000111 0 100 0 0 01 0  | 0x0E 0x8A Input 1 FSR +-0.256V
+    // 0 011 111 0 100 0 0 01 0 | 0x3E 0x8A Input 2 FSR +-0.256V 
     // Sets FSR to +-0.256V
-    SPI.beginTransaction(SPISetting);
+    ads1118->begin();
+    ads1118->setFullScaleRange(ads1118->FSR_0256);
+    ads1118->setContinuousMode();
+    lastChannelChange = millis();
+    /*SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
-    SPI.transfer(ADS1118_INPUTREGISTER[0]);
-    SPI.transfer(0x8A);
+    SPI.transfer16(controlRegister);
+    //SPI.transfer16(0x2170);
+    //SPI.transfer(ADS1118_INPUTREGISTER[0]);
+    //SPI.transfer(0x8A);
     digitalWrite(CSPin, HIGH);
-    SPI.endTransaction();
+    SPI.endTransaction();*/
 }
 void TemperatureChannel::update() {
     //Set input to correct channel
-    SPI.beginTransaction(SPISetting);
+    if(mode == DONE){
+        mode = GETTING_TEMP;
+        lastChannelChange = millis();
+    }
+    if(((millis() - lastChannelChange) > delayChannelChange) && mode == GETTING_TEMP)
+    {
+        /*Serial.print("Entering channel switch: lastChange:");
+        Serial.print(millis() - lastChannelChange);
+        Serial.print("| mode: ");
+        Serial.println(mode);*/
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        SPI.transfer16(controlRegister);
+        //SPI.transfer16(0x2170);
+        //SPI.transfer(controlRegister);
+        //SPI.transfer(0x8A);
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
+        //ads1118->setInputSelected(controlRegister);
+        mode = DELAYING;
+        lastChannelChange = millis();
+    }
+    if(((millis() - lastChannelChange) > delayMesurement) && mode == DELAYING) {
+        //Serial.println("Entering measurement");
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        double result = SPI.transfer16(0x0000);
+        if(result < 65500) {
+            temperature = result;
+        }
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
+        //ads1118->getTemperature();
+        mode = DONE;
+    }
+    /*SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
-    SPI.transfer(controlRegister);
-    SPI.transfer(0x8A);
+    SPI.transfer16(controlRegister);
+    //SPI.transfer16(0x2170);
+    //SPI.transfer(controlRegister);
+    //SPI.transfer(0x8A);
     digitalWrite(CSPin, HIGH);
     SPI.endTransaction();
 
+    delay(100);
     //Read value of previously selected input
-    unsigned int msb;
-    unsigned int lsb;
     SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
-    msb = SPI.transfer(0x00);
-    lsb = SPI.transfer(0x00);
+    //msb = SPI.transfer(0x00);
+    //lsb = SPI.transfer(0x00);
+    temperature = SPI.transfer16(0x0000);
+    //temperature = SPI.transfer16(0x000);
+    //Serial.print("MSB:"); Serial.println(msb);
+    //Serial.print("LSB:"); Serial.println(lsb);
     digitalWrite(CSPin, HIGH);
     SPI.endTransaction();
-    temperature = ( msb << 8) | lsb;
+    //temperature = ( msb << 8) | lsb;*/
 }
+
+int TemperatureChannel::getMode() {
+    return mode;
+}
+
 
 PassiveChannel::PassiveChannel(int CSPin, int voltagePin, int switchPin, int controlRegister):Channel(CSPin) {
    this->voltagePin = voltagePin; 

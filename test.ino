@@ -22,13 +22,15 @@ int pinCS13 = 33;
 int voltagePassif1 = 54;
 int voltage = 0;
 
-int lastUpdate = millis();
+long lastUpdate = millis();
 const int updateTime = 1000;
 //Channels channels;
 Channels channels;
 Master raspberrypi;
 
 bool sweetOnce = true;
+
+int csState = LOW;
 
 void setup()
 {
@@ -38,7 +40,7 @@ void setup()
     for(int i = 0; i < 8; i++)
     {
         channels.TemperatureChannels[i]->init();
-        channels.ActiveChannels[i]->startMPPT();
+        //channels.ActiveChannels[i]->startMPPT();
     }
     setPWMScaler(1);
     pinMode(ledPin, OUTPUT);
@@ -46,11 +48,16 @@ void setup()
 }
 
 void loop() { 
-    /*if((millis() - lastUpdate) > updateTime) {
+    if((millis() - lastUpdate) > updateTime) {
         updateAllChannels();
         lastUpdate = millis();
-    }*/
-
+    }
+    for(int i = 0; i < 16; i++) {
+        int mode = channels.TemperatureChannels[i]->getMode();
+        if(mode == GETTING_TEMP | mode == DELAYING) {
+            channels.TemperatureChannels[i]->update();
+        }   
+    }
     for(int i = 0; i < 8; i++)
     {
         int mode = channels.ActiveChannels[i]->getMode();
@@ -101,7 +108,7 @@ void setPWMScaler(int value) {
 void updateAllChannels() {
         for(int i = 0 ; i < 8; i++)
         {
-            channels.ActiveChannels[i]->updateMPPT();
+            channels.ActiveChannels[i]->update();
         }
         for(int i=0; i < 8; i++)
         {
@@ -132,7 +139,7 @@ void execCommand(String command)  {
     {
         channels.ActiveChannels[(int)command.charAt(23) - (int)'0']->startMPPT();
         /*Serial.print("channels.ActiveChannels["); 
-        Serial.print((int)command.charAt(23)); 
+        Serial.print((int)command.charAt(23)- (int)'0'); 
         Serial.println("]->startMPPT;");*/
     }
     if(command.startsWith("StopMPPTActiveChannel_"))
