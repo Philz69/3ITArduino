@@ -1,6 +1,7 @@
 #include "channels.h"
 
-Channel::Channel(int CSPin) {
+Channel::Channel(int CSPin, unsigned int controlRegister) {
+    this->controlRegister = controlRegister;
     this->CSPin = CSPin;
     pinMode(CSPin, OUTPUT);
     digitalWrite(CSPin, HIGH);
@@ -10,17 +11,15 @@ Channel::~Channel() {
 
 }
 
-TemperatureChannel::TemperatureChannel(int CSPin, int controlRegister):Channel(CSPin) {
+TemperatureChannel::TemperatureChannel(int CSPin, unsigned int controlRegister):Channel(CSPin, controlRegister) {
     SPISetting = SPISettings(3000000, MSBFIRST, SPI_MODE1);
-    ads1118 = new ADS1118(CSPin);
-    this->controlRegister = controlRegister;
     if(controlRegister == ADS1118_INPUTREGISTER[0]) {
         delayMesurement = 100;
         delayChannelChange = 0;
     }
     else
     {
-        delayChannelChange = 200;
+        delayChannelChange = 350;
         delayMesurement = 100;
     }
     
@@ -37,78 +36,69 @@ void TemperatureChannel::init() {
     // 0  000111 0 100 0 0 01 0  | 0x0E 0x8A Input 1 FSR +-0.256V
     // 0 011 111 0 100 0 0 01 0 | 0x3E 0x8A Input 2 FSR +-0.256V 
     // Sets FSR to +-0.256V
-    ads1118->begin();
-    ads1118->setFullScaleRange(ads1118->FSR_0256);
-    ads1118->setContinuousMode();
-    lastChannelChange = millis();
-    /*SPI.beginTransaction(SPISetting);
+    SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
     SPI.transfer16(controlRegister);
-    //SPI.transfer16(0x2170);
-    //SPI.transfer(ADS1118_INPUTREGISTER[0]);
-    //SPI.transfer(0x8A);
     digitalWrite(CSPin, HIGH);
-    SPI.endTransaction();*/
+    SPI.endTransaction();
+    lastChannelChange = millis();
 }
 void TemperatureChannel::update() {
-    //Set input to correct channel
     if(mode == DONE){
         mode = GETTING_TEMP;
         lastChannelChange = millis();
     }
     if(((millis() - lastChannelChange) > delayChannelChange) && mode == GETTING_TEMP)
     {
-        /*Serial.print("Entering channel switch: lastChange:");
-        Serial.print(millis() - lastChannelChange);
-        Serial.print("| mode: ");
-        Serial.println(mode);*/
         SPI.beginTransaction(SPISetting);
         digitalWrite(CSPin, LOW);
         SPI.transfer16(controlRegister);
-        //SPI.transfer16(0x2170);
-        //SPI.transfer(controlRegister);
-        //SPI.transfer(0x8A);
         digitalWrite(CSPin, HIGH);
         SPI.endTransaction();
-        //ads1118->setInputSelected(controlRegister);
         mode = DELAYING;
         lastChannelChange = millis();
     }
     if(((millis() - lastChannelChange) > delayMesurement) && mode == DELAYING) {
-        //Serial.println("Entering measurement");
         SPI.beginTransaction(SPISetting);
         digitalWrite(CSPin, LOW);
-        double result = SPI.transfer16(0x0000);
-        if(result < 65500) {
-            temperature = result;
-        }
+        unsigned int result = SPI.transfer16(controlRegister | 0x10); //Reads millivolts of selected channel and selects internal temperature sensor for the next reading
         digitalWrite(CSPin, HIGH);
         SPI.endTransaction();
-        //ads1118->getTemperature();
+        if(result>=0x8000) //Millivolts are negative
+        {
+            result=((~result)+1);
+            millivolts = (result*0.256/32768)*-1000;
+        }
+        else //Millivolts are positive
+        {
+            millivolts = result*0.256/32768*1000;
+        }
+        mode = GETTING_AMBIENT;
+        lastChannelChange = millis();
+    }
+    if(((millis() - lastChannelChange) > delayMesurement) && mode == GETTING_AMBIENT) {
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        unsigned int ambientResult = SPI.transfer16(0x0000); //Reads the ambient temperature
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
+
+        //The result is 14 bit, left justified but our value contains 16 bits. Shift 2 bit to the right to compensate
+        ambientResult = ambientResult>>2; 
+        if(ambientResult >= 0x2000) //Ambient temp is negative
+        {
+           ambientTemp = ambientResult * -0.03125;    
+        }
+        else //Ambient temp is positive
+        {
+            ambientTemp = ambientResult * 0.03125;    
+        }
+
+        /*Serial.println("millivolts: ");
+        Serial.println(millivolts);*/
+        temperature = thermocoupleConvertWithCJCompensation(millivolts * 1000, ambientTemp * 1000) / 1000;
         mode = DONE;
     }
-    /*SPI.beginTransaction(SPISetting);
-    digitalWrite(CSPin, LOW);
-    SPI.transfer16(controlRegister);
-    //SPI.transfer16(0x2170);
-    //SPI.transfer(controlRegister);
-    //SPI.transfer(0x8A);
-    digitalWrite(CSPin, HIGH);
-    SPI.endTransaction();
-
-    delay(100);
-    //Read value of previously selected input
-    SPI.beginTransaction(SPISetting);
-    digitalWrite(CSPin, LOW);
-    //msb = SPI.transfer(0x00);
-    //lsb = SPI.transfer(0x00);
-    temperature = SPI.transfer16(0x0000);
-    //temperature = SPI.transfer16(0x000);
-    //Serial.print("MSB:"); Serial.println(msb);
-    //Serial.print("LSB:"); Serial.println(lsb);
-    digitalWrite(CSPin, HIGH);
-    SPI.endTransaction();
-    //temperature = ( msb << 8) | lsb;*/
 }
 
 int TemperatureChannel::getMode() {
@@ -116,12 +106,12 @@ int TemperatureChannel::getMode() {
 }
 
 
-PassiveChannel::PassiveChannel(int CSPin, int voltagePin, int switchPin, int controlRegister):Channel(CSPin) {
+PassiveChannel::PassiveChannel(int CSPin, int voltagePin, int switchPin, unsigned int controlRegister):Channel(CSPin, controlRegister) {
    this->voltagePin = voltagePin; 
    this->switchPin = switchPin; 
    pinMode(voltagePin, INPUT);
    pinMode(switchPin, OUTPUT);
-   SPISetting = SPISettings(100000, MSBFIRST, SPI_MODE0);
+   SPISetting = SPISettings(3000000, MSBFIRST, SPI_MODE1);
 }
 
 PassiveChannel::~PassiveChannel() {
@@ -130,12 +120,18 @@ PassiveChannel::~PassiveChannel() {
 
 void PassiveChannel::update() {
     digitalWrite(switchPin, LOW);
-    voltage = analogRead(voltagePin) * 4.9;
+    voltage = analogRead(voltagePin) * 4.9 / 0.7;
     digitalWrite(switchPin, HIGH);
+    //delay(100);
     SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
+<<<<<<< HEAD
     current = SPI.transfer(controlRegister) * 5000.0/4096.0 * 2000;
     digitalWrite(CSPin, HIGH);
+=======
+    current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
+    digitalWrite(CSPin, HIGH); 
+>>>>>>> dd720e43c60647836d24d17cdb47b855c7df749b
     SPI.endTransaction();
     digitalWrite(switchPin, LOW);
 }
@@ -156,13 +152,17 @@ int PassiveChannel::getCSPin() {
     return CSPin;
 }
 
+int PassiveChannel::getSwitchPin() {
+    return switchPin;
+}
+
 int PassiveChannel::setState(int state) {
     digitalWrite(switchPin, state);
     this->state = state;
     return 1;
 }
 
-ActiveChannel::ActiveChannel(int CSPin, int voltagePin, int switchPin, int controlRegister):PassiveChannel(CSPin, voltagePin, switchPin, controlRegister) {
+ActiveChannel::ActiveChannel(int CSPin, int voltagePin, int switchPin, unsigned int controlRegister):PassiveChannel(CSPin, voltagePin, switchPin, controlRegister) {
 }
 
 ActiveChannel::~ActiveChannel() {    
@@ -191,12 +191,40 @@ void ActiveChannel::update() {
     }
     else
     {
-        voltage = analogRead(voltagePin) * 4.9;
+        float averageCurrent = 0;
+        float averageVoltage = 0;
+        for(int i = 0; i < 10; i++)
+        {
+           // PassiveChannel::update();
+            voltage = analogRead(voltagePin) * 4.9 / 0.7;
+            SPI.beginTransaction(SPISetting);
+            digitalWrite(CSPin, LOW);
+            current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
+            digitalWrite(CSPin, HIGH); 
+            SPI.endTransaction();
+            averageCurrent += current / 10; 
+            averageVoltage += voltage / 10; 
+        }
+        current = averageCurrent;
+        voltage = averageVoltage;
+        if(voltage == 0)
+        {
+            voltage = 1;
+        }
+        if(current == 0)
+        {
+            current = 1;
+        }
+        /*voltage = analogRead(voltagePin) * 4.9 / 0.7;
         SPI.beginTransaction(SPISetting);
         digitalWrite(CSPin, LOW);
+<<<<<<< HEAD
         current = SPI.transfer(controlRegister) * 5000.0/4096.0 * 2000;
+=======
+        current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
+>>>>>>> dd720e43c60647836d24d17cdb47b855c7df749b
         digitalWrite(CSPin, HIGH);
-        SPI.endTransaction();
+        SPI.endTransaction();*/
     }
 }
 int ActiveChannel::getPWM() {
@@ -204,6 +232,14 @@ int ActiveChannel::getPWM() {
 }
 int ActiveChannel::setPWM(int value) {
     lastPWM = PWM;
+    if(value > 255)
+    {
+        value = 255;
+    }
+    if(value < 0)
+    {
+        value = 255;
+    }
     analogWrite(switchPin, value);
     PWM = value;
     return 1;
