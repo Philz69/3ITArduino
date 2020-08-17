@@ -111,7 +111,7 @@ class ActiveChannel100W: public ActiveChannel {
         int VSenseNControlRegister;
         int VSensePControlRegister;
         int CurrentControlRegister;
-}
+};
 
 class Channels {
     public:

@@ -125,13 +125,8 @@ void PassiveChannel::update() {
     //delay(100);
     SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
-<<<<<<< HEAD
-    current = SPI.transfer(controlRegister) * 5000.0/4096.0 * 2000;
-    digitalWrite(CSPin, HIGH);
-=======
     current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
     digitalWrite(CSPin, HIGH); 
->>>>>>> dd720e43c60647836d24d17cdb47b855c7df749b
     SPI.endTransaction();
     digitalWrite(switchPin, LOW);
 }
@@ -346,7 +341,7 @@ Channels::~Channels()
        }
        delete(this->TemperatureChannels[i]);
    }
-   delete(this->ActiveChannels[8])
+   delete(this->ActiveChannels[8]);
 }
 
 

@@ -49,12 +49,6 @@ void setup()
 }
 
 void loop() { 
-<<<<<<< HEAD
-    /*if((millis() - lastUpdate) > updateTime) {
-        updateAllChannels();
-        lastUpdate = millis();
-    }*/
-=======
     if((millis() - lastUpdate) > updateTime) {
         //channels.ActiveChannels[7]->updateMPPT();
         //Serial.print("CSPin: ");
@@ -72,7 +66,6 @@ void loop() {
         lastUpdate = millis();
     }
         //channels.ActiveChannels[7]->updateMPPT();
->>>>>>> dd720e43c60647836d24d17cdb47b855c7df749b
     for(int i = 0; i < 16; i++) {
         int mode = channels.TemperatureChannels[i]->getMode();
         if(mode != DONE) {
