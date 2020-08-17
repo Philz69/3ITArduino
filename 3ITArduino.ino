@@ -45,16 +45,30 @@ void setup()
     setPWMScaler(1);
     pinMode(ledPin, OUTPUT);
     Serial.println("Ready");
+    //channels.ActiveChannels[7]->startMPPT();
 }
 
 void loop() { 
     if((millis() - lastUpdate) > updateTime) {
+        //channels.ActiveChannels[7]->updateMPPT();
+        //Serial.print("CSPin: ");
+        //Serial.print(channels.ActiveChannels[7]->getCSPin());
+        //Serial.print("PWM Pin: ");
+        //Serial.print(channels.ActiveChannels[7]->getSwitchPin());
+        //Serial.print("| PWM: ");
+        //Serial.print(channels.ActiveChannels[7]->getPWM());
+        //Serial.print("| Current: ");
+        //Serial.println(channels.ActiveChannels[7]->getCurrent());
+        //Serial.print("| Voltage: ");
+        //Serial.println(channels.ActiveChannels[7]->getVoltage());
+        //raspberrypi.sendUpdate();
         updateAllChannels();
         lastUpdate = millis();
     }
+        //channels.ActiveChannels[7]->updateMPPT();
     for(int i = 0; i < 16; i++) {
         int mode = channels.TemperatureChannels[i]->getMode();
-        if(mode == GETTING_TEMP | mode == DELAYING) {
+        if(mode != DONE) {
             channels.TemperatureChannels[i]->update();
         }   
     }
@@ -83,9 +97,7 @@ void loop() {
     }
     if(Serial.available() > 0)
     {
-        //int before = millis();
         execCommand(raspberrypi.getCommand());
-        //Serial.println(millis() - before);
     }
 
 }
@@ -108,16 +120,12 @@ void setPWMScaler(int value) {
 void updateAllChannels() {
         for(int i = 0 ; i < 8; i++)
         {
-            channels.ActiveChannels[i]->update();
-        }
-        for(int i=0; i < 8; i++)
-        {
-            channels.TemperatureChannels[i]->update();
-        }
-        for(int i=0; i <8; i++)
-        {
             channels.PassiveChannels[i]->update();
             channels.ActiveChannels[i]->update();
+        }
+        for(int i=0; i < 16; i++)
+        {
+            channels.TemperatureChannels[i]->update();
         }
         raspberrypi.sendUpdate(channels);
 }

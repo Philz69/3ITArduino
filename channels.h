@@ -2,9 +2,9 @@
 #define CHANNELS_H
 
 #include <SPI.h>
-#include "ADS1118.h"
+#include "thermocouple.h"
 
-const int ADC124S_INPUTREGISTER[4] = {0x00,0x08,0x10,0x18};
+const unsigned int ADC124S_INPUTREGISTER[4] = {0xE7E7,0xEFEF,0xF7F7,0xFFFF};
 const int ADS1118_INPUTS[2] = {0b000, 0b011};
 const unsigned int ADS1118_INPUTREGISTER[2] = {0xE82, 0x3E82};//{0x8f82, 0xBF82};;
 const int AnalogPins[16] = {54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69};
@@ -18,7 +18,8 @@ const int SWEEP_MODE = 2;
 
 const int GETTING_TEMP = 0;
 const int DELAYING = 1;
-const int DONE = 2;
+const int GETTING_AMBIENT = 2;
+const int DONE = 3;
 
 struct sweepResult {
     int voltage = 0;
@@ -27,18 +28,18 @@ struct sweepResult {
 
 class Channel {
     public:
-        Channel(int CSPin);
+        Channel(int CSPin, unsigned int controlRegister);
         ~Channel();
         virtual void update() = 0;
     protected:
         SPISettings SPISetting;
-        int controlRegister;
+        unsigned int controlRegister;
         int CSPin;
 };
 
 class TemperatureChannel: public Channel {
     public:
-        TemperatureChannel(int CSPin, int controlRegister);
+        TemperatureChannel(int CSPin, unsigned int controlRegister);
         ~TemperatureChannel();
         void init();
         void update();
@@ -50,19 +51,21 @@ class TemperatureChannel: public Channel {
         int delayChannelChange;
         long lastChannelChange;
         long lastChannelMeasurement;
-        ADS1118* ads1118;
         double temperature = 0;
+        double ambientTemp = 0;
+        double millivolts = 0;
 };
 
 class PassiveChannel: public Channel {
     public:
-        PassiveChannel(int CSPin, int voltagePin, int switchPin, int controlRegister);
+        PassiveChannel(int CSPin, int voltagePin, int switchPin, unsigned int controlRegister);
         ~PassiveChannel();
         void update();
         int getVoltage();
         int getCurrent();
         int getPower();
         int getCSPin();
+        int getSwitchPin();
         int setState(int state);
         int select();
     protected:
@@ -75,7 +78,7 @@ class PassiveChannel: public Channel {
 
 class ActiveChannel: public PassiveChannel {
     public:
-        ActiveChannel(int CSPin, int voltagePin, int switchPin, int controlRegister);
+        ActiveChannel(int CSPin, int voltagePin, int switchPin, unsigned int controlRegister);
         ~ActiveChannel();
         void update();
         int sweepIV();
@@ -96,7 +99,7 @@ class ActiveChannel: public PassiveChannel {
         int lastVoltage;
         int lastCurrent;
         int mode;
-        bool simulate = true;
+        bool simulate = false;
 };
 
 class Channels {
