@@ -134,7 +134,7 @@ void PassiveChannel::update() {
     digitalWrite(switchPin, HIGH);
     SPI.beginTransaction(SPISetting);
     digitalWrite(CSPin, LOW);
-    current = SPI.transfer(controlRegister) * 2000;
+    current = SPI.transfer(controlRegister) * 5000.0/4096.0 * 2000;
     digitalWrite(CSPin, HIGH);
     SPI.endTransaction();
     digitalWrite(switchPin, LOW);
@@ -194,7 +194,7 @@ void ActiveChannel::update() {
         voltage = analogRead(voltagePin) * 4.9;
         SPI.beginTransaction(SPISetting);
         digitalWrite(CSPin, LOW);
-        current = SPI.transfer(controlRegister) * 2000;
+        current = SPI.transfer(controlRegister) * 5000.0/4096.0 * 2000;
         digitalWrite(CSPin, HIGH);
         SPI.endTransaction();
     }
@@ -294,8 +294,9 @@ Channels::Channels() {
     }
     for(int i = 0; i < 8; i++)
     {
-        this->ActiveChannels[i] = new ActiveChannel(CSPins[i/4+10], AnalogPins[i], PWMPins[i], ADC124S_INPUTREGISTER[i%4]);
+        this->ActiveChannels[i] = new ActiveChannel(CSPins[i/4+10], AnalogPins[i+8], PWMPins[i], ADC124S_INPUTREGISTER[i%4]);
     }
+    this->ActiveChannels[8] = new ActiveChannel100W(CSPins[12], PWMPins[8], ADC124S_INPUTREGISTER[3], ADC124S_INPUTREGISTER[2], ADC124S_INPUTREGISTER[1]);
 }
 
 Channels::~Channels()
@@ -309,4 +310,35 @@ Channels::~Channels()
        }
        delete(this->TemperatureChannels[i]);
    }
+   delete(this->ActiveChannels[8])
+}
+
+
+ActiveChannel100W::ActiveChannel100W(int CSPin, int switchPin, int VSenseNControlRegister, int VSensePControlRegister, int CurrentControlRegister):ActiveChannel(CSPin, 0, switchPin, 0){
+        this->VSenseNControlRegister = VSenseNControlRegister;
+        this->VSensePControlRegister = VSensePControlRegister;
+        this->CurrentControlRegister = CurrentControlRegister;
+}
+
+void ActiveChannel100W::update() 
+{
+
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        unsigned int VsenseNVoltage = SPI.transfer(VSenseNControlRegister) * 5000.0/4096.0 / 0.7;
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
+
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        unsigned int VsensePVoltage = SPI.transfer(VSensePControlRegister) * 5000.0/4096.0 / 0.7;
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
+        voltage = VsensePVoltage - VsenseNVoltage;
+
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        current = SPI.transfer(CurrentControlRegister) * 5000.0/4096.0 * 0.2;
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
 }

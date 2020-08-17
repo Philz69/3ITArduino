@@ -99,13 +99,24 @@ class ActiveChannel: public PassiveChannel {
         bool simulate = true;
 };
 
+class ActiveChannel100W: public ActiveChannel {
+    public:
+        ActiveChannel100W(int CSPin, int switchPin, int VSenseNControlRegister, int VSensePControlRegister, int CurrentControlRegister);
+        ~ActiveChannel100W();
+        void update();
+    protected:
+        int VSenseNControlRegister;
+        int VSensePControlRegister;
+        int CurrentControlRegister;
+}
+
 class Channels {
     public:
         Channels();
         ~Channels();
         TemperatureChannel* TemperatureChannels[16];
         PassiveChannel* PassiveChannels[8];
-        ActiveChannel* ActiveChannels[8];
+        ActiveChannel* ActiveChannels[9];
 };
 
 #endif

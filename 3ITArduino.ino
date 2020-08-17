@@ -48,10 +48,10 @@ void setup()
 }
 
 void loop() { 
-    if((millis() - lastUpdate) > updateTime) {
+    /*if((millis() - lastUpdate) > updateTime) {
         updateAllChannels();
         lastUpdate = millis();
-    }
+    }*/
     for(int i = 0; i < 16; i++) {
         int mode = channels.TemperatureChannels[i]->getMode();
         if(mode == GETTING_TEMP | mode == DELAYING) {
