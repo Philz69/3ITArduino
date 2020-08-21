@@ -4,6 +4,9 @@
 #include <SPI.h>
 #include "thermocouple.h"
 
+const int MPPT_NMB_POINTS_AVG = 10;
+const int MPPT_PWM_OFFSET = 1;
+
 const unsigned int ADC124S_INPUTREGISTER[4] = {0xE7E7,0xEFEF,0xF7F7,0xFFFF};
 const int ADS1118_INPUTS[2] = {0b000, 0b011};
 const unsigned int ADS1118_INPUTREGISTER[2] = {0xE82, 0x3E82};//{0x8f82, 0xBF82};;
@@ -81,7 +84,7 @@ class ActiveChannel: public PassiveChannel {
         ActiveChannel(int CSPin, int voltagePin, int switchPin, unsigned int controlRegister);
         ~ActiveChannel();
         void update();
-        int sweepIV();
+        void update(int nmbAverage);
         void startSweepIV();
         void sweepIVasync();
         int startMPPT();
@@ -104,13 +107,13 @@ class ActiveChannel: public PassiveChannel {
 
 class ActiveChannel100W: public ActiveChannel {
     public:
-        ActiveChannel100W(int CSPin, int switchPin, int VSenseNControlRegister, int VSensePControlRegister, int CurrentControlRegister);
+        ActiveChannel100W(int CSPin, int switchPin, unsigned int VSenseNControlRegister, unsigned int VSensePControlRegister, unsigned int CurrentControlRegister);
         ~ActiveChannel100W();
         void update();
     protected:
-        int VSenseNControlRegister;
-        int VSensePControlRegister;
-        int CurrentControlRegister;
+        unsigned int VSenseNControlRegister;
+        unsigned int VSensePControlRegister;
+        unsigned int CurrentControlRegister;
 };
 
 class Channels {

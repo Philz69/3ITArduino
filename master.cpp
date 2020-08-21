@@ -25,11 +25,12 @@ void Master::sendUpdate(Channels &channels) {
         data["voltage"] = channels.PassiveChannels[i]->getVoltage();
         data["current"] = channels.PassiveChannels[i]->getCurrent(); 
     }
-    for(int i = 0; i < 8; i++)
+    for(int i = 0; i < 9; i++)
     {
         JsonObject data = JSONactiveChannels.createNestedObject();
         data["voltage"] = channels.ActiveChannels[i]->getVoltage();
         data["current"] = channels.ActiveChannels[i]->getCurrent(); 
+        data["mode"] = channels.ActiveChannels[i]->getMode();
     }
     serializeJson(doc, Serial);
     Serial.println();

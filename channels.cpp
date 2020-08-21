@@ -97,6 +97,14 @@ void TemperatureChannel::update() {
         /*Serial.println("millivolts: ");
         Serial.println(millivolts);*/
         temperature = thermocoupleConvertWithCJCompensation(millivolts * 1000, ambientTemp * 1000) / 1000;
+        if(temperature > 1200)
+        {
+            temperature = 0;
+        }
+        else if(temperature < -200)
+        {
+            temperature = 0;
+        }
         mode = DONE;
     }
 }
@@ -111,7 +119,7 @@ PassiveChannel::PassiveChannel(int CSPin, int voltagePin, int switchPin, unsigne
    this->switchPin = switchPin; 
    pinMode(voltagePin, INPUT);
    pinMode(switchPin, OUTPUT);
-   SPISetting = SPISettings(3000000, MSBFIRST, SPI_MODE1);
+   SPISetting = SPISettings(3000000, MSBFIRST, SPI_MODE3);
 }
 
 PassiveChannel::~PassiveChannel() {
@@ -166,7 +174,7 @@ ActiveChannel::~ActiveChannel() {
 void ActiveChannel::update() {
     lastVoltage = voltage;
     lastCurrent = current;
-    if(simulate)
+    if(simulate) //if you want to test the MPPT algorithm without a solar panel. Mimics the power curve of a real solar panel
     {
         double voltageSimul = (PWM/255.0) * 5000;
         voltage = 1;
@@ -186,22 +194,26 @@ void ActiveChannel::update() {
     }
     else
     {
-        float averageCurrent = 0;
-        float averageVoltage = 0;
-        for(int i = 0; i < 10; i++)
-        {
-           // PassiveChannel::update();
+            if(mode == STATIC_MODE)
+            {
+                this->setPWM(0);
+            }
             voltage = analogRead(voltagePin) * 4.9 / 0.7;
+            if(mode == STATIC_MODE)
+            {
+                this->setPWM(255);
+            }
             SPI.beginTransaction(SPISetting);
             digitalWrite(CSPin, LOW);
             current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
+            current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
             digitalWrite(CSPin, HIGH); 
             SPI.endTransaction();
-            averageCurrent += current / 10; 
-            averageVoltage += voltage / 10; 
-        }
-        current = averageCurrent;
-        voltage = averageVoltage;
+            if(mode == STATIC_MODE)
+            {
+                this->setPWM(0);
+            }
+    }
         if(voltage == 0)
         {
             voltage = 1;
@@ -210,17 +222,6 @@ void ActiveChannel::update() {
         {
             current = 1;
         }
-        /*voltage = analogRead(voltagePin) * 4.9 / 0.7;
-        SPI.beginTransaction(SPISetting);
-        digitalWrite(CSPin, LOW);
-<<<<<<< HEAD
-        current = SPI.transfer(controlRegister) * 5000.0/4096.0 * 2000;
-=======
-        current = SPI.transfer16(controlRegister) * 5000.0/4096.0 / 2;
->>>>>>> dd720e43c60647836d24d17cdb47b855c7df749b
-        digitalWrite(CSPin, HIGH);
-        SPI.endTransaction();*/
-    }
 }
 int ActiveChannel::getPWM() {
     return PWM;
@@ -237,17 +238,6 @@ int ActiveChannel::setPWM(int value) {
     }
     analogWrite(switchPin, value);
     PWM = value;
-    return 1;
-}
-
-int ActiveChannel::sweepIV() {
-    for(int i = 0; i < 255; i++)
-    {
-        setPWM(i);
-        update();
-        sweepData[i % 32].voltage = voltage;
-        sweepData[i % 32].current = current;
-    }
     return 1;
 }
 
@@ -287,25 +277,37 @@ int ActiveChannel::startMPPT() {
 }
 
 int ActiveChannel::updateMPPT() {
-    if(simulate)
+    this->update(SWEEP_NMB_POINTS_AVG);
+    long power = voltage * 1L * current;
+    long lastPower = lastVoltage* 1L * lastCurrent;
+    if(lastPower > power)
     {
-        /*Serial.print("Voltage: "); Serial.print(voltage); Serial.print("| Current: "); Serial.print(current); Serial.print("| Total: "); Serial.println(voltage*current);
-        Serial.print("PWM: "); Serial.println(PWM);*/
-    }
-    if(lastVoltage*lastCurrent > voltage*current)
-    {
-        this->setPWM(PWM + (lastPWM-PWM));
+        if(lastPWM > PWM)
+        {
+            this->setPWM(PWM + MPPT_PWM_OFFSET);
+        }
+        else
+        {
+            this->setPWM(PWM - MPPT_PWM_OFFSET);
+        }
     }
     else
     {
-        this->setPWM(PWM - (lastPWM-PWM));
+        if(lastPWM > PWM)
+        {
+            this->setPWM(PWM - MPPT_PWM_OFFSET);
+        }
+        else
+        {
+            this->setPWM(PWM + MPPT_PWM_OFFSET);
+        }
     }
-    this->update();
     return 1;
 }
 
 int ActiveChannel::stopMPPT() {
     mode = STATIC_MODE;
+    setPWM(0);
     return 1;
 }
 
@@ -345,7 +347,7 @@ Channels::~Channels()
 }
 
 
-ActiveChannel100W::ActiveChannel100W(int CSPin, int switchPin, int VSenseNControlRegister, int VSensePControlRegister, int CurrentControlRegister):ActiveChannel(CSPin, 0, switchPin, 0){
+ActiveChannel100W::ActiveChannel100W(int CSPin, int switchPin, unsigned int VSenseNControlRegister, unsigned int VSensePControlRegister, unsigned int CurrentControlRegister):ActiveChannel(CSPin, 0, switchPin, 0){
         this->VSenseNControlRegister = VSenseNControlRegister;
         this->VSensePControlRegister = VSensePControlRegister;
         this->CurrentControlRegister = CurrentControlRegister;
@@ -353,23 +355,84 @@ ActiveChannel100W::ActiveChannel100W(int CSPin, int switchPin, int VSenseNContro
 
 void ActiveChannel100W::update() 
 {
+        lastVoltage = voltage;
+        lastCurrent = current;
 
+        if(mode == STATIC_MODE) //Si il n'est pas en mppt ni en Sweep
+        {
+            setPWM(0);
+        }
         SPI.beginTransaction(SPISetting);
         digitalWrite(CSPin, LOW);
-        unsigned int VsenseNVoltage = SPI.transfer(VSenseNControlRegister) * 5000.0/4096.0 / 0.7;
+        unsigned int VsensePVoltage = SPI.transfer16(VSensePControlRegister) * 5000.0/4096.0 / 0.3; //Nmb of lsb * size of lsb / voltage divider ratio
+        VsensePVoltage = SPI.transfer16(VSensePControlRegister) * 5000.0/4096.0 / 0.3; //Nmb of lsb * size of lsb / voltage divider ratio
+        VsensePVoltage = SPI.transfer16(VSensePControlRegister) * 5000.0/4096.0 / 0.3; //Nmb of lsb * size of lsb / voltage divider ratio
         digitalWrite(CSPin, HIGH);
         SPI.endTransaction();
 
+
         SPI.beginTransaction(SPISetting);
         digitalWrite(CSPin, LOW);
-        unsigned int VsensePVoltage = SPI.transfer(VSensePControlRegister) * 5000.0/4096.0 / 0.7;
+        unsigned int VsenseNVoltage = SPI.transfer16(VSenseNControlRegister) * 5000.0/4096.0; //Nmb of lsb * size of lsb
+        VsenseNVoltage = SPI.transfer16(VSenseNControlRegister) * 5000.0/4096.0; //Nmb of lsb * size of lsb
+        VsenseNVoltage = SPI.transfer16(VSenseNControlRegister) * 5000.0/4096.0; //Nmb of lsb * size of lsb
         digitalWrite(CSPin, HIGH);
         SPI.endTransaction();
+
+        if(mode == STATIC_MODE)
+        {
+            setPWM(255);
+        }
+
+        SPI.beginTransaction(SPISetting);
+        digitalWrite(CSPin, LOW);
+        current = SPI.transfer16(CurrentControlRegister) * 5000.0/4096.0 / 0.2;
+        current = SPI.transfer16(CurrentControlRegister) * 5000.0/4096.0 / 0.2;
+        current = SPI.transfer16(CurrentControlRegister) * 5000.0/4096.0 / 0.2;
+        digitalWrite(CSPin, HIGH);
+        SPI.endTransaction();
+        //SPI.beginTransaction(SPISetting);
+        //digitalWrite(CSPin, LOW);
+        //current = SPI.transfer16(CurrentControlRegister) * 5000.0/4096.0 / 0.2;
+        //current = SPI.transfer16(CurrentControlRegister) * 5000.0/4096.0 / 0.2;
+        //digitalWrite(CSPin, HIGH);
+        //SPI.endTransaction();
+
         voltage = VsensePVoltage - VsenseNVoltage;
 
-        SPI.beginTransaction(SPISetting);
-        digitalWrite(CSPin, LOW);
-        current = SPI.transfer(CurrentControlRegister) * 5000.0/4096.0 * 0.2;
-        digitalWrite(CSPin, HIGH);
-        SPI.endTransaction();
+        if(mode == STATIC_MODE)
+        {
+            setPWM(0);
+        }
+
+        //Serial.print("Vsense+");
+        //Serial.print(VsensePVoltage);
+        //Serial.print("Vsense-");
+        //Serial.println(VsenseNVoltage);
+        if(current == 0)
+        {
+            current = 1;
+        }
+        if(voltage == 0)
+        {
+            voltage = 1;
+        }
+}
+void ActiveChannel::update(int nmbAverage)
+{
+    int initialVoltage = voltage;
+    int initialCurrent = current;
+    float averageCurrent = 0;
+    float averageVoltage = 0;
+
+    for(int i = 0; i < nmbAverage; i++)
+    {
+        update();
+        averageCurrent += current / nmbAverage;
+        averageVoltage += voltage / nmbAverage;
+    }
+    current = averageCurrent;
+    voltage = averageVoltage;
+    lastVoltage = initialVoltage;
+    lastCurrent = initialCurrent;
 }

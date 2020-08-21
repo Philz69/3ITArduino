@@ -23,7 +23,9 @@ int voltagePassif1 = 54;
 int voltage = 0;
 
 long lastUpdate = millis();
+long lastRefresh = millis();
 const int updateTime = 1000;
+const int minimumRefreshTime = 10;
 //Channels channels;
 Channels channels;
 Master raspberrypi;
@@ -45,7 +47,7 @@ void setup()
     setPWMScaler(1);
     pinMode(ledPin, OUTPUT);
     Serial.println("Ready");
-    //channels.ActiveChannels[7]->startMPPT();
+    channels.ActiveChannels[8]->startMPPT();
 }
 
 void loop() { 
@@ -62,7 +64,7 @@ void loop() {
         //Serial.print("| Voltage: ");
         //Serial.println(channels.ActiveChannels[7]->getVoltage());
         //raspberrypi.sendUpdate();
-        updateAllChannels();
+        //updateAllChannels();
         lastUpdate = millis();
     }
         //channels.ActiveChannels[7]->updateMPPT();
@@ -72,34 +74,42 @@ void loop() {
             channels.TemperatureChannels[i]->update();
         }   
     }
-    for(int i = 0; i < 8; i++)
+    if((millis()-lastRefresh) > minimumRefreshTime)
     {
-        int mode = channels.ActiveChannels[i]->getMode();
-        /*Serial.print("Mode: ");
-        Serial.println(mode);*/
-        if(mode == MPPT_MODE)
+        for(int i = 0; i < 9; i++)
         {
-            channels.ActiveChannels[i]->updateMPPT();
-        }
-        else if(mode == SWEEP_MODE)
-        {
-            /*int pwm = channels.ActiveChannels[i]->getPWM();
-            Serial.print("PWM: ");
-            Serial.print(pwm);
-            Serial.print("PWM % 32:");
-            Serial.println(pwm % 32);*/
-            if(channels.ActiveChannels[i]->getPWM() % 32 >= 31)
+            int mode = channels.ActiveChannels[i]->getMode();
+            /*Serial.print("Mode: ");
+            Serial.println(mode);*/
+            if(mode == MPPT_MODE)
             {
-                raspberrypi.sendPartialSweepData(channels.ActiveChannels[i]->getSweepResult(), i, channels.ActiveChannels[i]->getPWM());
+                channels.ActiveChannels[i]->updateMPPT();
+                //Serial.print("PWM:");
+                //Serial.print(channels.ActiveChannels[8]->getPWM());
+                //Serial.print("| Power: ");
+                //long power = channels.ActiveChannels[8]->getCurrent() * 1L * channels.ActiveChannels[8]->getVoltage();
+                //Serial.println(power);
             }
-            channels.ActiveChannels[i]->sweepIVasync();
+            else if(mode == SWEEP_MODE)
+            {
+                /*int pwm = channels.ActiveChannels[i]->getPWM();
+                Serial.print("PWM: ");
+                Serial.print(pwm);
+                Serial.print("PWM % 32:");
+                Serial.println(pwm % 32);*/
+                if(channels.ActiveChannels[i]->getPWM() % 32 >= 31)
+                {
+                    raspberrypi.sendPartialSweepData(channels.ActiveChannels[i]->getSweepResult(), i, channels.ActiveChannels[i]->getPWM());
+                }
+                channels.ActiveChannels[i]->sweepIVasync();
+            }
         }
+        lastRefresh = millis();
     }
     if(Serial.available() > 0)
     {
         execCommand(raspberrypi.getCommand());
     }
-
 }
 void setPWMScaler(int value) {
     if(value < 1 || value > 6)
@@ -127,6 +137,7 @@ void updateAllChannels() {
         {
             channels.TemperatureChannels[i]->update();
         }
+        channels.ActiveChannels[8]->update();
         raspberrypi.sendUpdate(channels);
 }
 
